@@ -85,14 +85,14 @@ get.cnv <- function(data, start, end){
   type[x.t >= quantile(y$mean, prob = 0.95)] <- "dup"
   type[x.t <= quantile(y$mean, prob = 0.05)] <- "del"
   x.t[x.t < quantile(y$mean, prob = 0.95) & x.t > quantile(y$mean, prob = 0.05)] <- 0
-  return(cbind(x.t, y$x, type))
+  return(data.frame(intensity = x.t, pos = y$x, type = type))
 }
 
 
 run.cnv.tv <- function(file){
   data <- read.data(file)
   cnv.list <- get.cnv(data, 5.945e+7, 5.955e+7)
-  
+  i <- which(!is.na(cnv.list$type))
 }
 
 
