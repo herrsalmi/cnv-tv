@@ -35,56 +35,53 @@ findSegment <- function(x) {
   return(cbind(starts, ends))
 }
 
-all.data <- fread("all.rufus.txt", header = FALSE)
 
-myvector_all<-as.vector(all.data$V3)
-windowAll<-slidingwindowplot(binSize,myvector_all)
-df<-data.frame(windowAll[[1]],windowAll[[2]],windowAll[[3]])
-colname<-c("x","mean","sd")
-colnames(df)<-colname
-
-remove(all.data)
-
-y <- df[df$x>5.945e+7 & df$x<5.955e+7,]
-
-y <- df[df$x>5.5e+7 & df$x<6e+7,]
-
-out <- fusedlasso1d(y$mean, y$x)
-cv <- cv.trendfilter(out)
-
-x <- coef(out, lambda = cv$lambda.1se)
-
-x <- x$beta
-seg <- findSegment(x)
-names(seg) <- NULL
-ampl <- c()
-for (i in 1:length(seg[,1])) {
-  ampl <- c(ampl, sum(y$mean[seg[i,1]:seg[i,2]]) / (seg[i,2] - seg[i,1] + 1) )
+read.data <- function(file){
+  all.data <- fread(file, header = FALSE)
+  myvector_all<-as.vector(all.data$V3)
+  windowAll<-slidingwindowplot(binSize,myvector_all)
+  df<-data.frame(windowAll[[1]],windowAll[[2]],windowAll[[3]])
+  colname<-c("x","mean","sd")
+  colnames(df)<-colname
+  remove(all.data) 
+  return(df)
 }
-seg.length <- (seg[,2] - seg[,1] + 1)
-x_t <- rep(ampl, seg[,2] - seg[,1] + 1)
-names(x_t) <- NULL
 
-plot(out, lambda = cv$lambda.1se, pch = ".", cex = 2)
-lines(y$x, x_t, col = "red")
+get.cnv <- function(data, start, end){
+  y <- data[data$x >= start & data$x <= end,]
+  out <- fusedlasso1d(y$mean, y$x)
+  cv <- cv.trendfilter(out)
+  x <- coef(out, lambda = cv$lambda.1se)
+  x <- x$beta
+  seg <- findSegment(x)
+  names(seg) <- NULL
+  ampl <- c()
+  for (i in 1:length(seg[,1])) {
+    ampl <- c(ampl, sum(y$mean[seg[i,1]:seg[i,2]]) / (seg[i,2] - seg[i,1] + 1) )
+  }
+  seg.length <- (seg[,2] - seg[,1] + 1)
+  x.t <- rep(ampl, seg[,2] - seg[,1] + 1)
+  names(x.t) <- NULL
+  plot(out, lambda = cv$lambda.1se, pch = ".", cex = 2)
+  lines(y$x, x.t, col = "red")
+  abline(a = quantile(y$mean, prob = 0.05), b = 0, col = "green")
+  abline(a = quantile(y$mean, prob = 0.95), b = 0, col = "green")
+  type <- vector(mode = "character")
+  type[x.t >= quantile(y$mean, prob = 0.95)] <- "dup"
+  type[x.t <= quantile(y$mean, prob = 0.05)] <- "del"
+  x.t[x.t < quantile(y$mean, prob = 0.95) & x.t > quantile(y$mean, prob = 0.05)] <- 0
+  return(cbind(x.t, y$x, type))
+}
 
-abline(a = quantile(y$mean, prob = 0.05), b = 0, col = "green")
-abline(a = quantile(y$mean, prob = 0.95), b = 0, col = "green")
+
+run.cnv.tv <- function(file){
+  data <- read.data(file)
+  cnv.list <- get.cnv(data, 5.945e+7, 5.955e+7)
+  
+}
 
 
-
-
-
-##########################################
-plot(NULL, ylim = c(-1, 300), xlim = c(min(y$x), max(y$x)))
-
-x.rocker[x.rocker < quantile(y$mean, prob = 0.95)] <- 0
-
-
-lines(y$x, x.rocker, col = "red")
-lines(y$x, x.rufus, col = "blue")
-lines(y$x, x.rural, col = "green")
-##########################################
+## clustering ################
 
 pos <- which(x_t > quantile(y$mean, prob = 0.95))
 dat <- cbind(y$x[pos], pos)
