@@ -35,6 +35,21 @@ findSegment <- function(x) {
   return(cbind(starts, ends))
 }
 
+group <- function(x){
+  starts <- x[1]
+  ends <- c()
+  for (i in seq(2, length(x))) {
+    if (x[i-1] + 1 == x[i]) {
+      next()
+    } else {
+      starts <- c(starts, x[i])
+      ends <- c(ends, x[i-1])
+    }
+  }
+  ends <- c(ends, x[length(x)])
+  return(cbind(starts, ends))
+}
+
 
 read.data <- function(file){
   all.data <- fread(file, header = FALSE)
