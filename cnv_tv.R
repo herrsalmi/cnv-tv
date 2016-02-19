@@ -1,6 +1,7 @@
 require(ggplot2)
 library(data.table)
 library(genlasso)
+library(plotly)
 
 binSize<-100
 
@@ -53,11 +54,11 @@ group <- function(x){
 
 read.data <- function(file){
   all.data <- fread(file, header = FALSE)
-  myvector_all<-as.vector(all.data$V3)
-  windowAll<-slidingwindowplot(binSize,myvector_all)
-  df<-data.frame(windowAll[[1]],windowAll[[2]],windowAll[[3]])
-  colname<-c("x","mean","sd")
-  colnames(df)<-colname
+  myvector_all <- as.vector(all.data$V3)
+  windowAll <- slidingwindowplot(binSize,myvector_all)
+  df <- data.frame(windowAll[[1]],windowAll[[2]],windowAll[[3]])
+  colname <- c("x","mean","sd")
+  colnames(df) <- colname
   remove(all.data) 
   return(df)
 }
@@ -93,35 +94,34 @@ run.cnv.tv <- function(file){
   data <- read.data(file)
   cnv.list <- get.cnv(data, 5.945e+7, 5.955e+7)
   i <- which(!is.na(cnv.list$type))
+  g <- group(i)
+  data.frame(Type = cnv.list$type[g[,1]], Start = cnv.list$pos[g[,1]], End = cnv.list$pos[g[,2]], 
+             Length = (g[,2] - g[,1]) * 100)
 }
 
 
 ## clustering ################
+## Not Run
+dat <- cbind(cnv.list$pos[i], i)
 
-pos <- which(x_t > quantile(y$mean, prob = 0.95))
-dat <- cbind(y$x[pos], pos)
-
-n = length(pos)
-n1 = ceiling(n*2/3)
+n <- length(i)
+n1 <- ceiling(n*2/3)
 
 # percentage of variance explained by clusters
-p.exp = rep(0,n1)
+p.exp <- rep(0,n1)
 
 # minimum correlation among all components in each cluster  
-min.cor = matrix(1,n1,n1)  
+min.cor <- matrix(1,n1,n1)  
 
 for (i in 2:n1) {
-  fit = kmeans(dat, centers=i, iter.max=100, nstart=100)
-  p.exp[i] = 1- fit$tot.withinss / fit$totss
+  fit <- kmeans(dat, centers=i, iter.max=100, nstart=100)
+  p.exp[i] <- 1- fit$tot.withinss / fit$totss
 }
 
-# minimum number of clusters that explain at least 99% of variance
-min(which(p.exp > 0.99))
+# minimum number of clusters that explain at least 99.9% of variance
+min(which(p.exp > 0.999))
 
-
-# number of clusters based on elbow method
-find.maximum.distance.point(p.exp[-1]) + 1
+## End(Not Run)
 
 
 
-plot(y$x[pos], (pos)^2)
