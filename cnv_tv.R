@@ -150,8 +150,11 @@ extract.cnv <- function(chrom, chrom.name) {
   starts <- c(starts, length(chrom))
   n <- length(starts) - 1
   data <- read.data(chrom)
+  print(paste0("Processing chromosome ", chrom.name))
+  pb <- txtProgressBar(min = 0, max = n, style = 3)
   for (i in 1:n) {
-    print(paste0("Processing ", chrom.name, ":", starts[i], "-",starts[i+1]))
+    #print(paste0("Processing ", chrom.name, ":", starts[i], "-",starts[i+1]))
+    setTxtProgressBar(pb, i)
     cnv.list <- get.cnv(data, starts[i], starts[i+1], chrom.name)
     if(is.null(cnv.list)) {
       next()
@@ -169,6 +172,7 @@ extract.cnv <- function(chrom, chrom.name) {
                 row.names = FALSE, col.names = FALSE)
     
   }
+  close(pb)
 }
 
 run.cnv.tv <- function(file){
