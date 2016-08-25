@@ -1,1 +1,0 @@
-Chromosome	Start	End	Type	Length	Intensity

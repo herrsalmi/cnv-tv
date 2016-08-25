@@ -6,7 +6,13 @@ library(genlasso)
 
 binSize<-100
 windowSize <- 0.2e+6
+prefix <- "test"
 
+#' OS type
+#' 
+#' Detects OS type to set null device used for messages redirection
+#' 
+#' @return OS type
 get_os <- function(){
   sysinf <- Sys.info()
   if (!is.null(sysinf)){
@@ -25,14 +31,19 @@ get_os <- function(){
   tolower(os)
 }
 
+## Set null device
 if (get_os() == "windows") {
   NULL.DEV <- "NUL"
 } else {
   NULL.DEV <- "/dev/null"
 }
 
-
-slidingwindowplot <- function(windowsize, inputseq) {
+#' Mean read depth over a sliding windows
+#' 
+#' @param windowsize sliding window size
+#' @param inputseq vector of read depth per base
+#' @return list with positions, mean depth and sd
+slidingwindowcoverage <- function(windowsize, inputseq) {
   starts <- seq(1, length(inputseq)-windowsize, by=windowsize)
   n <- length(starts)
   chunkbps <- numeric(n)
@@ -47,6 +58,10 @@ slidingwindowplot <- function(windowsize, inputseq) {
   return (list(starts,chunkbps,chunkstats))
 }
 
+#' Finds segments with uniform intensities
+#' 
+#' @param x vector of intensities
+#' @return list of (starts,ends) of segments
 findSegment <- function(x) {
   starts <- 1
   ends <- c()
@@ -62,6 +77,10 @@ findSegment <- function(x) {
   return(cbind(starts, ends))
 }
 
+#' Groups intensities with sequential indexes
+#' 
+#' @param x indexes from list of dup/del
+#' @return list of (starts,ends) of segments
 group <- function(x){
   starts <- x[1]
   ends <- c()
@@ -77,6 +96,10 @@ group <- function(x){
   return(cbind(starts, ends))
 }
 
+#' Computes coverage for each base from a BAM file
+#' 
+#' @param file BAM file
+#' @return coverage values for each base
 extractCoverageFromBAM <- function(file) {
   param <- ScanBamParam(flag=scanBamFlag(isUnmappedQuery=FALSE,
                                          isDuplicate=FALSE),
@@ -90,17 +113,30 @@ extractCoverageFromBAM <- function(file) {
   coverage(irl)
 }
 
-read.data <- function(file){
-  #all.data <- extractCoverageFromBAM(file)@listData[[1]] # we deal only with one chromosome
-  #myvector_all <- as.vector(all.data)
-  myvector_all <- as.vector(file)
-  windowAll <- slidingwindowplot(binSize, myvector_all)
+#' Mean coverage as data.frame
+#' 
+#' Calls slidingwindowcoverage and returns a formated data.farme
+#' 
+#' @param cvg coverage values for each base
+#' @return data.frame of mean coverage
+computeMeanCoverage <- function(cvg){
+  myvector_all <- as.vector(cvg)
+  windowAll <- slidingwindowcoverage(binSize, myvector_all)
   df <- data.frame(windowAll[[1]],windowAll[[2]],windowAll[[3]])
-  colname <- c("x","mean","sd")
-  colnames(df) <- colname
+  colnames(df) <- c("x","mean","sd")
   return(df)
 }
 
+#' Detects CNVs in window
+#' 
+#' Detects CNVs in window defined by (start,end) using LASSO solver
+#' and sets thresholds for CNV calling by using a lognormal distribution
+#' 
+#' @param data mean coverage
+#' @param start start position of the window
+#' @param end end position of the window
+#' @param chrom.name chromosome name
+#' @return data.frame of dup/del positions in window
 get.cnv <- function(data, start, end, chrom.name){
   y <- data[data$x >= start & data$x <= end,]
   out <- fusedlasso1d(y$mean, y$x)
@@ -118,7 +154,7 @@ get.cnv <- function(data, start, end, chrom.name){
   seg.length <- (seg[,2] - seg[,1] + 1)
   x.t <- rep(ampl, seg[,2] - seg[,1] + 1)
   names(x.t) <- NULL
-  svg(paste0("Plots/", chrom.name, "_", start, "_", end, ".svg"),width=14,height=7)
+  svg(paste0("Plots_", prefix,"/", chrom.name, "_", start, "_", end, ".svg"),width=14,height=7)
   plot(out, lambda = cv$lambda.1se, pch = ".", cex = 2)
   lines(y$x, x.t, col = "red")
   
@@ -145,11 +181,16 @@ get.cnv <- function(data, start, end, chrom.name){
   return(data.frame(intensity = x.t, pos = y$x, type = type))
 }
 
+#' Processes a chromosome for CNVs using sliding windows of pre-defined size
+#' 
+#' @param chrom coverage over chromosome
+#' @param chrom.name chromosome name
 extract.cnv <- function(chrom, chrom.name) {
   starts <- seq(1, length(chrom)-windowSize, by=windowSize)
   starts <- c(starts, length(chrom))
   n <- length(starts) - 1
-  data <- read.data(chrom)
+  data <- computeMeanCoverage(chrom)
+  # GC correction
   print(paste0("Processing chromosome ", chrom.name))
   pb <- txtProgressBar(min = 0, max = n, style = 3)
   for (i in 1:n) {
@@ -167,27 +208,32 @@ extract.cnv <- function(chrom, chrom.name) {
     }
     cnv <- data.frame("Chrom" = chrom.name, "Start" = cnv.list$pos[g[,1]], "End" = cnv.list$pos[g[,2]], 
                       "Type" = cnv.list$type[g[,1]], "Length" = (g[,2] - g[,1]) * 100, "Intensity" = intensities)
-    
-    write.table(cnv, file = "CNV_TV_result.txt", append = TRUE, sep = "\t", 
+    ## drop element with length=0
+    cnv <- cnv[which(cnv[,5] != 0),]
+    write.table(cnv, file = paste0(prefix,"_CNV_TV_result.txt"), append = TRUE, sep = "\t", 
                 row.names = FALSE, col.names = FALSE)
     
   }
   close(pb)
 }
 
-run.cnv.tv <- function(file){
-  # file <- "Data/rocker.chr10.bam"
-  all.data <- extractCoverageFromBAM(file)
-  #windowSize <- 0.3e+6
+
+run.cnv.tv <- function(file, dna){
+  # file <- "Data/out.sorted.bam"
+  ref <- readDNAStringSet("Data/NC_008253.fa")
   
+  cvg <- extractCoverageFromBAM(file)
+
   # Create directory for graphics output
-  dir.create("Plots", showWarnings = TRUE, recursive = FALSE, mode = "0777")
+  dir.create(paste0("Plots_", prefix), showWarnings = TRUE, recursive = FALSE, mode = "0777")
   
-  write("Chromosome\tStart\tEnd\tType\tLength\tIntensity", file = "CNV_TV_result.txt",
+  write("Chromosome\tStart\tEnd\tType\tLength\tIntensity", file = paste0(prefix,"_CNV_TV_result.txt"),
               append = FALSE)
-  chrom.names <- names(all.data@listData)
+  chrom.names <- names(cvg@listData)
   chrom.index <- 1
-  for (i in all.data@listData) {
+  for (i in cvg@listData) {
+    ## GC bias correction goes here
+    
     extract.cnv(i, chrom.names[chrom.index])
     chrom.index <- chrom.index + 1
   }
