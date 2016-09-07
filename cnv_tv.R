@@ -2,11 +2,14 @@
 #library(plotly)
 library(GenomicAlignments)
 library(genlasso)
-
+source("gcCorrection.R")
+Rcpp::sourceCpp('gc.content.cpp')
 
 binSize<-100
 windowSize <- 0.2e+6
 prefix <- "test"
+upper.thr <- numeric()
+lower.thr <- numeric()
 
 #' OS type
 #' 
@@ -109,7 +112,7 @@ extractCoverageFromBAM <- function(file) {
   ## have already been filtered out by using the ScanBamParam object above.
   irl <- extractAlignmentRangesOnReference(bam$cigar, pos=bam$pos,
                                            f=bam$rname)
-  irl <- irl[elementLengths(irl) != 0] # drop empty elements
+  irl <- irl[elementNROWS(irl) != 0] # drop empty elements
   coverage(irl)
 }
 
@@ -138,6 +141,11 @@ computeMeanCoverage <- function(cvg){
 #' @param chrom.name chromosome name
 #' @return data.frame of dup/del positions in window
 get.cnv <- function(data, start, end, chrom.name){
+  # Skip 500Bp from the begening and end of the chromosom
+  if (start < 500)
+    start <- 501
+  if (end > tail(data$x, n=1)-500)
+    end <- tail(data$x, n=1)-500
   y <- data[data$x >= start & data$x <= end,]
   out <- fusedlasso1d(y$mean, y$x)
   sink(file = NULL.DEV)
@@ -158,19 +166,16 @@ get.cnv <- function(data, start, end, chrom.name){
   plot(out, lambda = cv$lambda.1se, pch = ".", cex = 2)
   lines(y$x, x.t, col = "red")
   
-  #upper.q <- quantile(x.t, prob = 0.975)
-  #lower.q <- quantile(x.t, prob = 0.025)
-  #f <- (y$mean[y$mean >= lower.q & y$mean <= upper.q])
-  f <- y$mean[y$mean > 0]
-  if(length(f) == 0) {
-    dev.off()
-    return(NULL)
-  }
-  params <- fitdistr(f, "lognormal")
-  
-  upper.thr <- qlnorm(0.95, params$estimate['meanlog'], params$estimate['sdlog'])
-  lower.thr <- qlnorm(0.05, params$estimate['meanlog'], params$estimate['sdlog'])
-  
+  # f <- y$mean[y$mean > 0]
+  # if(length(f) == 0) {
+  #   dev.off()
+  #   return(NULL)
+  # }
+  # params <- fitdistr(f, "lognormal")
+  # 
+  # upper.thr <- qlnorm(0.975, params$estimate['meanlog'], params$estimate['sdlog'])
+  # lower.thr <- qlnorm(0.012, params$estimate['meanlog'], params$estimate['sdlog'])
+  # 
   abline(a = lower.thr, b = 0, col = "green")
   abline(a = upper.thr, b = 0, col = "green")
   dev.off()
@@ -191,6 +196,13 @@ extract.cnv <- function(chrom, chrom.name) {
   n <- length(starts) - 1
   data <- computeMeanCoverage(chrom)
   # GC correction
+  data$mean <- gc.norm(ref, data$mean)
+  # compute thresholds
+  f <- data$mean[data$mean > 0]
+  params <- fitdistr(f, "lognormal")
+  upper.thr <<- qlnorm(0.975, params$estimate['meanlog'], params$estimate['sdlog'])
+  lower.thr <<- qlnorm(0.012, params$estimate['meanlog'], params$estimate['sdlog'])
+  
   print(paste0("Processing chromosome ", chrom.name))
   pb <- txtProgressBar(min = 0, max = n, style = 3)
   for (i in 1:n) {
@@ -219,21 +231,19 @@ extract.cnv <- function(chrom, chrom.name) {
 
 
 run.cnv.tv <- function(file, dna){
-  # file <- "Data/out.sorted.bam"
+  file <- "Data/aln.bam"
   ref <- readDNAStringSet("Data/NC_008253.fa")
   
   cvg <- extractCoverageFromBAM(file)
-
+  
   # Create directory for graphics output
   dir.create(paste0("Plots_", prefix), showWarnings = TRUE, recursive = FALSE, mode = "0777")
   
   write("Chromosome\tStart\tEnd\tType\tLength\tIntensity", file = paste0(prefix,"_CNV_TV_result.txt"),
-              append = FALSE)
+        append = FALSE)
   chrom.names <- names(cvg@listData)
   chrom.index <- 1
   for (i in cvg@listData) {
-    ## GC bias correction goes here
-    
     extract.cnv(i, chrom.names[chrom.index])
     chrom.index <- chrom.index + 1
   }
@@ -271,6 +281,5 @@ for (i in 2:n1) {
 min(which(p.exp > 0.999))
 
 ## End(Not Run)
-
 
 
