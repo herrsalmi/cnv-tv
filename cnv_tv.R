@@ -10,6 +10,7 @@ windowSize <- 0.2e+6
 prefix <- "test"
 upper.thr <- numeric()
 lower.thr <- numeric()
+meanCvg <- numeric()
 
 #' OS type
 #' 
@@ -204,7 +205,8 @@ extract.cnv <- function(chrom, chrom.name) {
   lower.thr <<- qlnorm(0.012, params$estimate['meanlog'], params$estimate['sdlog'])
   
   print(paste0("Processing chromosome ", chrom.name))
-  pb <- txtProgressBar(min = 0, max = n, style = 3)
+  # fixe the pb: min=1
+  pb <- txtProgressBar(min = 1, max = n, style = 3)
   for (i in 1:n) {
     #print(paste0("Processing ", chrom.name, ":", starts[i], "-",starts[i+1]))
     setTxtProgressBar(pb, i)
@@ -222,7 +224,7 @@ extract.cnv <- function(chrom, chrom.name) {
                       "Type" = cnv.list$type[g[,1]], "Length" = (g[,2] - g[,1]) * 100, "Intensity" = intensities)
     ## drop element with length=0
     cnv <- cnv[which(cnv[,5] != 0),]
-    write.table(cnv, file = paste0(prefix,"_CNV_TV_result.txt"), append = TRUE, sep = "\t", 
+    write.table(cnv, file = paste0(prefix,"_CNV_TV_result.tmp"), append = TRUE, sep = "\t", 
                 row.names = FALSE, col.names = FALSE)
     
   }
@@ -239,15 +241,38 @@ run.cnv.tv <- function(file, dna){
   # Create directory for graphics output
   dir.create(paste0("Plots_", prefix), showWarnings = TRUE, recursive = FALSE, mode = "0777")
   
-  write("Chromosome\tStart\tEnd\tType\tLength\tIntensity", file = paste0(prefix,"_CNV_TV_result.txt"),
+  write("Chromosome\tStart\tEnd\tType\tLength\tIntensity", file = paste0(prefix,"_CNV_TV_result.tmp"),
         append = FALSE)
   chrom.names <- names(cvg@listData)
   chrom.index <- 1
   for (i in cvg@listData) {
+    meanCvg <<- mean(i)
     extract.cnv(i, chrom.names[chrom.index])
     chrom.index <- chrom.index + 1
   }
   
+  d <- read.table(paste0(prefix,"_CNV_TV_result.tmp"), header = T, sep = "\t")
+  del <- d[d$Type=="del",]$Intensity
+  dup <- d[d$Type=="dup",]$Intensity
+  ## del threshold
+  k <- suppressWarnings(kmeans(d[d$Type=="del",]$Intensity,2))
+  grp <- which(k$centers == max(k$centers))
+  del <- del[which(k$cluster == grp)]
+  params = suppressWarnings(fitdistr(del, "poisson"))
+  thr.del <- params$estimate + qnorm(0.975)*params$sd/sqrt(length(del))
+  
+  ## dup threshold
+  k <- suppressWarnings(kmeans(d[d$Type=="dup",]$Intensity,2))
+  grp <- which(k$centers == min(k$centers))
+  dup <- dup[which(k$cluster == grp)]
+  params = suppressWarnings(fitdistr(dup, "poisson"))
+  thr.dup <- params$estimate - qnorm(0.975)*params$sd/sqrt(length(dup))
+  
+  d <- d[which((d$Type=="del" & d$Intensity < thr.del) | (d$Type=="dup" & d$Intensity > thr.dup)),]
+  
+  write.table(d, file = paste0(prefix,"_CNV_TV_result.txt"), append = FALSE, sep = "\t", 
+              row.names = FALSE, col.names = TRUE)
+  file.remove(paste0(prefix,"_CNV_TV_result.tmp"))
   ## OLD
   
   #data <- read.data(file)
@@ -257,29 +282,5 @@ run.cnv.tv <- function(file, dna){
   #}
   
 }
-
-
-## clustering ################
-## Not Run
-dat <- cbind(cnv.list$pos[i], i)
-
-n <- length(i)
-n1 <- ceiling(n*2/3)
-
-# percentage of variance explained by clusters
-p.exp <- rep(0,n1)
-
-# minimum correlation among all components in each cluster  
-min.cor <- matrix(1,n1,n1)  
-
-for (i in 2:n1) {
-  fit <- kmeans(dat, centers=i, iter.max=100, nstart=100)
-  p.exp[i] <- 1- fit$tot.withinss / fit$totss
-}
-
-# minimum number of clusters that explain at least 99.9% of variance
-min(which(p.exp > 0.999))
-
-## End(Not Run)
 
 
