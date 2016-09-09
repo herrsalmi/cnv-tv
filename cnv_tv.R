@@ -166,17 +166,6 @@ get.cnv <- function(data, start, end, chrom.name){
   svg(paste0("Plots_", prefix,"/", chrom.name, "_", start, "_", end, ".svg"),width=14,height=7)
   plot(out, lambda = cv$lambda.1se, pch = ".", cex = 2)
   lines(y$x, x.t, col = "red")
-  
-  # f <- y$mean[y$mean > 0]
-  # if(length(f) == 0) {
-  #   dev.off()
-  #   return(NULL)
-  # }
-  # params <- fitdistr(f, "lognormal")
-  # 
-  # upper.thr <- qlnorm(0.975, params$estimate['meanlog'], params$estimate['sdlog'])
-  # lower.thr <- qlnorm(0.012, params$estimate['meanlog'], params$estimate['sdlog'])
-  # 
   abline(a = lower.thr, b = 0, col = "green")
   abline(a = upper.thr, b = 0, col = "green")
   dev.off()
@@ -231,26 +220,7 @@ extract.cnv <- function(chrom, chrom.name) {
   close(pb)
 }
 
-
-run.cnv.tv <- function(file, dna){
-  file <- "Data/aln.bam"
-  ref <- readDNAStringSet("Data/NC_008253.fa")
-  
-  cvg <- extractCoverageFromBAM(file)
-  
-  # Create directory for graphics output
-  dir.create(paste0("Plots_", prefix), showWarnings = TRUE, recursive = FALSE, mode = "0777")
-  
-  write("Chromosome\tStart\tEnd\tType\tLength\tIntensity", file = paste0(prefix,"_CNV_TV_result.tmp"),
-        append = FALSE)
-  chrom.names <- names(cvg@listData)
-  chrom.index <- 1
-  for (i in cvg@listData) {
-    meanCvg <<- mean(i)
-    extract.cnv(i, chrom.names[chrom.index])
-    chrom.index <- chrom.index + 1
-  }
-  
+cnv.filter <- function(){
   d <- read.table(paste0(prefix,"_CNV_TV_result.tmp"), header = T, sep = "\t")
   del <- d[d$Type=="del",]$Intensity
   dup <- d[d$Type=="dup",]$Intensity
@@ -273,13 +243,28 @@ run.cnv.tv <- function(file, dna){
   write.table(d, file = paste0(prefix,"_CNV_TV_result.txt"), append = FALSE, sep = "\t", 
               row.names = FALSE, col.names = TRUE)
   file.remove(paste0(prefix,"_CNV_TV_result.tmp"))
-  ## OLD
+}
+
+run.cnv.tv <- function(file, fasta){
+  file <- "Data/aln.bam"
+  fasta <- "Data/NC_008253.fa"
+  ref <- readDNAStringSet(fasta)
   
-  #data <- read.data(file)
-  #cnv.list <- get.cnv(data, 5.935e+7, 5.965e+7)
-  #if(is.null(cnv.list)) {
-  #  print("No reads")
-  #}
+  cvg <- extractCoverageFromBAM(file)
+  
+  # Create directory for graphics output
+  dir.create(paste0("Plots_", prefix), showWarnings = TRUE, recursive = FALSE, mode = "0777")
+  
+  write("Chromosome\tStart\tEnd\tType\tLength\tIntensity", file = paste0(prefix,"_CNV_TV_result.tmp"),
+        append = FALSE)
+  chrom.names <- names(cvg@listData)
+  chrom.index <- 1
+  for (i in cvg@listData) {
+    meanCvg <<- mean(i)
+    extract.cnv(i, chrom.names[chrom.index])
+    chrom.index <- chrom.index + 1
+  }
+  cnv.filter()
   
 }
 

@@ -1,24 +1,7 @@
 ###############################
 ## Gc content bias correction
 ###############################
-library(GenomicAlignments)
-
-# param <- ScanBamParam(flag=scanBamFlag(isUnmappedQuery=FALSE,
-#                                        isDuplicate=FALSE),
-#                       what=c("rname", "pos", "cigar"))
-# bam <- scanBam("Data/out.sorted.bam", param=param)[[1]]
-# irl <- extractAlignmentRangesOnReference(bam$cigar, pos=bam$pos,
-#                                          f=bam$rname)
-# irl <- irl[elementLengths(irl) != 0] # drop empty elements
-# 
-# cvg <- coverage(irl)
-# 
-# windowAll <- slidingwindowcoverage(100, as.vector(cvg[[1]]))
-# cvg <- windowAll[[2]]
-
-## if you have coverage values, start here
-
-#ref <- readDNAStringSet("Data/NC_008253.fa")
+require(GenomicAlignments)
 
 gc.norm <- function(ref, cvg, method = "window"){
   window.size <- 100
@@ -59,7 +42,6 @@ gc.norm <- function(ref, cvg, method = "window"){
   
   adjustedReadCount <- as.numeric(cvgP) * (d / binsMedian[as.character(gc)])
   return(adjustedReadCount)
-  #plot(adjustedReadCount[35000:35600], type = 'l')
 }
 
 ###############################
@@ -77,30 +59,3 @@ gc.norm <- function(ref, cvg, method = "window"){
 # gc.content <- gcContent(as.character(ref[[1]]), 100)
 # lowratio <- lowess.gc(gc.content[-49390], windowAll[[2]])
 # 
-# ## test
-# windowAll <- slidingwindowcoverage(100, as.vector(cvg$NC_008253))
-# length(windowAll[[2]])
-# ## Plot
-# z <- GRanges("NC_008253",IRanges(3500000,3600000))
-# plot(as.numeric(cvg$NC_008253[ranges(z)]), type = "l")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
