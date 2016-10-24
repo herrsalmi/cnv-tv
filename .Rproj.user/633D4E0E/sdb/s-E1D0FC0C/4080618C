@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "###############################\n## Gc content bias correction\n###############################\nrequire(GenomicAlignments)\n\ngc.norm <- function(ref, cvg, method = \"window\"){\n  window.size <- 100\n  gc <- gcContent(as.character(ref[[1]]), 100)\n  pad.right <- function (rle, value=0, len) {\n    if (length(rle) > len) stop(\"length mismatch: len must be >= length(rle)!\")\n    if (len > length(rle))\n      c(rle, Rle(value, len-length(rle)))\n    else rle\n  }\n\n  if (length(cvg) > length(gc)){\n    cvgP <- cvg[1:length(gc)]\n  } else {\n    #cvgP <- pad.right(cvg, len=length(gc))\n    cvgP <- cvg\n    gc <- gc[1:length(cvgP)]\n  }\n  \n  gcU <- unique(gc)\n  \n  nonZeroIndex <- which(cvgP != 0)\n  zeroList <- 1:min(nonZeroIndex)\n  \n  binsMedian <- numeric(length(gcU))\n  names(binsMedian) <- gcU\n  for (i in 1:length(gcU)) {\n    index <- which(gc == gcU[i])\n    index <- index[!index %in% zeroList]\n    if (length(index) == 0) {\n      binsMedian[i] <- 1\n      next()\n    }\n    binsMedian[i] <- median(cvgP[index])\n  }\n  \n  d <- sqrt(median((cvgP[min(nonZeroIndex):length(cvgP)])^2))\n  \n  adjustedReadCount <- as.numeric(cvgP) * (d / binsMedian[as.character(gc)])\n  return(adjustedReadCount)\n}\n\n###############################\n## LOWESS correction\n###############################\n\n# lowess.gc <- function(jtkx, jtky) {\n#   jtklow <- lowess(jtkx, log(jtky), f=0.05)\n#   jtkz <- approx(jtklow$x, jtklow$y, jtkx)\n#   return(exp(log(jtky) - jtkz$y))\n# }\n# \n# a <- cvg + 1  # to avoid log(0) when we apply log transformation\n# a <- a / mean(a)\n# gc.content <- gcContent(as.character(ref[[1]]), 100)\n# lowratio <- lowess.gc(gc.content[-49390], windowAll[[2]])\n# \n",
+    "created" : 1477303030271.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3799826982",
+    "id" : "4080618C",
+    "lastKnownWriteTime" : 1473437011,
+    "last_content_update" : 1473437011,
+    "path" : "~/GitHub/cnv-tv/gcCorrection.R",
+    "project_path" : "gcCorrection.R",
+    "properties" : {
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

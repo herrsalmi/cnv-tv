@@ -18,7 +18,7 @@ gc.norm <- function(ref, cvg, method = "window"){
   } else {
     #cvgP <- pad.right(cvg, len=length(gc))
     cvgP <- cvg
-    gc <- gc[-length(gc)]
+    gc <- gc[1:length(cvgP)]
   }
   
   gcU <- unique(gc)

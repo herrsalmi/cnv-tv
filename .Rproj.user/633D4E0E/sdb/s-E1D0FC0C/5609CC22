@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "#include <Rcpp.h>\n#include <string>\nusing namespace Rcpp;\n\n\n// [[Rcpp::export]]\nNumericVector gcContent(std::string x, int windowSize) {\n  int size = 0;\n  if(x.size() % windowSize == 0)\n    size = x.size() / windowSize;\n  else\n    size = std::floor(x.size() / windowSize) + 1;\n  NumericVector gcCount(size);\n  for(unsigned int i = 0; i < x.size(); i += windowSize){\n    int count = 0;\n    for(int j = 0; j < windowSize; j++){\n      if(x[i+j] == 'G' || x[i+j] == 'C')\n        count++;\n    }\n    gcCount[i/windowSize] = count;\n  }\n  return gcCount;\n}\n",
+    "created" : 1477303042740.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "1056255323",
+    "id" : "5609CC22",
+    "lastKnownWriteTime" : 1457710248,
+    "last_content_update" : 1457710248,
+    "path" : "~/GitHub/cnv-tv/gc.content.cpp",
+    "project_path" : "gc.content.cpp",
+    "properties" : {
+    },
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "cpp"
+}

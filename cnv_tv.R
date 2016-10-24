@@ -7,10 +7,10 @@ Rcpp::sourceCpp('gc.content.cpp')
 
 binSize<-100
 windowSize <- 0.2e+6
-prefix <- "test"
+prefix <- "sim3"
 upper.thr <- numeric()
 lower.thr <- numeric()
-meanCvg <- numeric()
+ref <- DNAStringSet()
 
 #' OS type
 #' 
@@ -164,7 +164,7 @@ get.cnv <- function(data, start, end, chrom.name){
   x.t <- rep(ampl, seg[,2] - seg[,1] + 1)
   names(x.t) <- NULL
   svg(paste0("Plots_", prefix,"/", chrom.name, "_", start, "_", end, ".svg"),width=14,height=7)
-  plot(out, lambda = cv$lambda.1se, pch = ".", cex = 2)
+  plot(out, lambda = cv$lambda.1se, pch = ".", cex = 2, color = 'blue')
   lines(y$x, x.t, col = "red")
   abline(a = lower.thr, b = 0, col = "green")
   abline(a = upper.thr, b = 0, col = "green")
@@ -200,10 +200,13 @@ extract.cnv <- function(chrom, chrom.name) {
     #print(paste0("Processing ", chrom.name, ":", starts[i], "-",starts[i+1]))
     setTxtProgressBar(pb, i)
     cnv.list <- get.cnv(data, starts[i], starts[i+1], chrom.name)
-    if(is.null(cnv.list)) {
+    if(is.null(cnv.list) || length(cnv.list) == 0) {
       next()
     }
     i <- which(!is.na(cnv.list$type))
+    if (length(i) < 2) {
+      next()
+    }
     g <- group(i)
     intensities <- vector(mode = "numeric")
     for (index in 1:(length(g)/2)) {
@@ -225,30 +228,38 @@ cnv.filter <- function(){
   del <- d[d$Type=="del",]$Intensity
   dup <- d[d$Type=="dup",]$Intensity
   ## del threshold
-  k <- suppressWarnings(kmeans(d[d$Type=="del",]$Intensity,2))
-  grp <- which(k$centers == max(k$centers))
-  del <- del[which(k$cluster == grp)]
+  if (length(del) > 1) {
+    k <- suppressWarnings(kmeans(del,2))
+    grp <- which(k$centers == max(k$centers))
+    del <- del[which(k$cluster == grp)]
+  }
   params = suppressWarnings(fitdistr(del, "poisson"))
-  thr.del <- params$estimate + qnorm(0.975)*params$sd/sqrt(length(del))
+  thr.del <- params$estimate + qnorm(0.95)*params$sd/sqrt(length(del))
   
   ## dup threshold
-  k <- suppressWarnings(kmeans(d[d$Type=="dup",]$Intensity,2))
-  grp <- which(k$centers == min(k$centers))
-  dup <- dup[which(k$cluster == grp)]
+  if (length(dup) > 1) {
+    k <- suppressWarnings(kmeans(dup,2))
+    grp <- which(k$centers == min(k$centers))
+    dup <- dup[which(k$cluster == grp)]
+  }
   params = suppressWarnings(fitdistr(dup, "poisson"))
   thr.dup <- params$estimate - qnorm(0.975)*params$sd/sqrt(length(dup))
   
-  d <- d[which((d$Type=="del" & d$Intensity < thr.del) | (d$Type=="dup" & d$Intensity > thr.dup)),]
+  d <- d[which((d$Type=="del" & d$Intensity < thr.del) | (d$Type=="del" & d$Length >= 800) | (d$Type=="dup" & d$Intensity > thr.dup) | (d$Type=="dup" & d$Length >= 800)),]
   
   write.table(d, file = paste0(prefix,"_CNV_TV_result.txt"), append = FALSE, sep = "\t", 
               row.names = FALSE, col.names = TRUE)
-  file.remove(paste0(prefix,"_CNV_TV_result.tmp"))
+  #file.remove(paste0(prefix,"_CNV_TV_result.tmp"))
 }
 
 run.cnv.tv <- function(file, fasta){
-  file <- "Data/aln.bam"
+  file <- "Data/NA19375.chrom20.ILLUMINA.bwa.LWK.low_coverage.20120522.bam"
+  fasta <- "Data/Homo_sapiens.GRCh38.dna.chromosome.20.fa"
+  
+  file <- "Data/sim3.bam"
   fasta <- "Data/NC_008253.fa"
-  ref <- readDNAStringSet(fasta)
+  
+  ref <<- readDNAStringSet(fasta)
   
   cvg <- extractCoverageFromBAM(file)
   
@@ -260,7 +271,7 @@ run.cnv.tv <- function(file, fasta){
   chrom.names <- names(cvg@listData)
   chrom.index <- 1
   for (i in cvg@listData) {
-    meanCvg <<- mean(i)
+    #meanCvg <<- mean(i)
     extract.cnv(i, chrom.names[chrom.index])
     chrom.index <- chrom.index + 1
   }
@@ -268,4 +279,31 @@ run.cnv.tv <- function(file, fasta){
   
 }
 
+
+###########################################################################
+d <- data.frame(dp=as.numeric(cvg$`20`[60000:2000000]))
+
+ggplot(d, aes(d$dp)) + 
+  geom_histogram(aes(y=..density..),binwidth = 1) +
+  scale_y_continuous('frequency') +
+  geom_vline(xintercept = 9.7, col = "green") 
+
+hist(d$dp, prob = T, xlab = "Read Depth", main = "Histogram of Read Depth")
+abline(v = 9.7, col = "green")
+m<-mean(d)
+std<-sqrt(var(d))
+curve(dnorm(x, mean=m, sd=std), add=TRUE, col = "blue")
+d <- remove_outliers(d)
+d <- d[!is.na(d)]
+params <- fitdistr(d[d != 0], "lognormal")
+curve(dlnorm(x, meanlog = params$estimate['meanlog'], sdlog = params$estimate['sdlog'], log = FALSE), add=TRUE, col = "red")
+
+remove_outliers <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x < (qnt[1] - H)] <- NA
+  y[x > (qnt[2] + H)] <- NA
+  y
+}
 

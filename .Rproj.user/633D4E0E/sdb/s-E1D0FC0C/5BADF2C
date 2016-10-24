@@ -1,0 +1,20 @@
+{
+    "collab_server" : "",
+    "contents" : "## Collect arguments\nargs <- commandArgs(TRUE)\n\n## Default setting when no arguments passed\nif(length(args) < 1) {\n  args <- c(\"--help\")\n}\n\n## Help section\nif(\"--help\" %in% args) {\n  cat(\"\n      CNV-TV\n      \n      Arguments:\n      --arg1=someValue   - numeric, blah blah\n      --arg2=someValue   - character, blah blah\n      --arg3=someValue   - logical, blah blah\n      --help             - print this text\n      \n      Example:\n      ./test.R --arg1=1 --arg2=text --arg3=TRUE \\n\\n\")\n  \n  q(save=\"no\")\n}\n\n## Parse arguments (we expect the form --arg=value)\nparseArgs <- function(x) strsplit(sub(\"^--\", \"\", x), \"=\")\nargsDF <- as.data.frame(do.call(\"rbind\", parseArgs(args)))\nargsL <- as.list(as.character(argsDF$V2))\nnames(argsL) <- argsDF$V1\n\n## Arg1 default\nif(is.null(args$arg1)) {\n  ## do something\n}\n\n## Arg2 default\nif(is.null(args$arg2)) {\n  ## do something\n}\n\n## Arg3 default\nif(is.null(args$arg3)) {\n  ## do something\n}\n\n\ncheck.arg <- function(bamfl) {\n  if(!file.exists(bamfl)){\n    stop(paste(\"The file:\",path(obj),\"does not exist.\"))\n  }\n  \n  if(length(seqinfo(bamfl))==0){\n    stop(\"Your BAM file has no sequence information in its header.\")\n  }\n}",
+    "created" : 1477303036678.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3278309608",
+    "id" : "5BADF2C",
+    "lastKnownWriteTime" : 1456479921,
+    "last_content_update" : 1456479921,
+    "path" : "~/GitHub/cnv-tv/input.check.R",
+    "project_path" : "input.check.R",
+    "properties" : {
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
