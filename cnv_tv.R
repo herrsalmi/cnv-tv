@@ -6,8 +6,8 @@ source("gcCorrection.R")
 Rcpp::sourceCpp('gc.content.cpp')
 
 binSize<-100
-windowSize <- 0.2e+6
-prefix <- "sim3"
+windowSize <- 0.5e+6
+prefix <- "NA07037"
 upper.thr <- numeric()
 lower.thr <- numeric()
 ref <- DNAStringSet()
@@ -143,11 +143,17 @@ computeMeanCoverage <- function(cvg){
 #' @return data.frame of dup/del positions in window
 get.cnv <- function(data, start, end, chrom.name){
   # Skip 500Bp from the begening and end of the chromosom
-  if (start < 500)
-    start <- 501
-  if (end > tail(data$x, n=1)-500)
-    end <- tail(data$x, n=1)-500
+  # if (start < 500)
+  #   start <- 501
+  # if (end > tail(data$x, n=1)-500)
+  #   end <- tail(data$x, n=1)-500
   y <- data[data$x >= start & data$x <= end,]
+  y <- y[is.finite(rowSums(y)),]
+  if(length(y$mean) == 0)
+    return(NULL)
+  r <- rle(y$mean)
+  if(max(r$length[r$values == 0]) > windowSize/2)
+    return(NULL)
   out <- fusedlasso1d(y$mean, y$x)
   sink(file = NULL.DEV)
   cv <- cv.trendfilter(out)
@@ -164,7 +170,7 @@ get.cnv <- function(data, start, end, chrom.name){
   x.t <- rep(ampl, seg[,2] - seg[,1] + 1)
   names(x.t) <- NULL
   svg(paste0("Plots_", prefix,"/", chrom.name, "_", start, "_", end, ".svg"),width=14,height=7)
-  plot(out, lambda = cv$lambda.1se, pch = ".", cex = 2, color = 'blue')
+  plot(out, lambda = cv$lambda.1se, pch = ".", cex = 2, col = 'blue')
   lines(y$x, x.t, col = "red")
   abline(a = lower.thr, b = 0, col = "green")
   abline(a = upper.thr, b = 0, col = "green")
@@ -189,6 +195,7 @@ extract.cnv <- function(chrom, chrom.name) {
   data$mean <- gc.norm(ref, data$mean)
   # compute thresholds
   f <- data$mean[data$mean > 0]
+  f <- f[is.finite(f)]
   params <- fitdistr(f, "lognormal")
   upper.thr <<- qlnorm(0.975, params$estimate['meanlog'], params$estimate['sdlog'])
   lower.thr <<- qlnorm(0.012, params$estimate['meanlog'], params$estimate['sdlog'])
@@ -253,8 +260,8 @@ cnv.filter <- function(){
 }
 
 run.cnv.tv <- function(file, fasta){
-  file <- "Data/NA19375.chrom20.ILLUMINA.bwa.LWK.low_coverage.20120522.bam"
-  fasta <- "Data/Homo_sapiens.GRCh38.dna.chromosome.20.fa"
+  file <- "Data/NA07037.chrom20.ILLUMINA.bwa.CEU.low_coverage.20101123.bam"
+  fasta <- "Data/chr20.fa"
   
   file <- "Data/sim3.bam"
   fasta <- "Data/NC_008253.fa"
